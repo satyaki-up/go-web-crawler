@@ -2,11 +2,8 @@ package crawler
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"regexp"
-	"strings"
 	"sync"
 	"time"
 )
@@ -18,6 +15,7 @@ type Crawler struct {
 	visited    *sync.Map
 	client     *http.Client
 	rateLimit  <-chan time.Time
+	robots     *Robots
 }
 
 func New(maxWorkers, maxDepth int, timeout time.Duration, requestsPerSecond int) *Crawler {
@@ -49,7 +47,14 @@ func (c *Crawler) Crawl(startURL string) map[string]bool {
 	}
 	baseURL := parsedURL.Scheme + "://" + parsedURL.Host
 	allowedHost := parsedURL.Host
-	fmt.Printf("allowedHost: %v\n", allowedHost)
+	
+	robots, err := NewRobots(baseURL, c.client)
+	if err != nil {
+		fmt.Printf("Warning: Failed to load robots.txt: %v\n", err)
+		robots = &Robots{group: nil}
+	}
+	c.robots = robots
+	fmt.Printf("robots: %v \n", robots)
 	
 	urlChan := make(chan crawlTask, 100)
 	done := make(chan struct{})
@@ -102,6 +107,11 @@ func (c *Crawler) worker(urlChan chan crawlTask, done <-chan struct{}, wg *sync.
 				continue
 			}
 			
+			if !c.robots.IsAllowed(task.url) {
+				pendingWork.Done()
+				continue
+			}
+			
 			links, err := c.fetchAndParse(task.url, baseURL)
 			if err != nil {
 				fmt.Printf("Error fetching %s: %v\n", task.url, err)
@@ -133,6 +143,10 @@ func (c *Crawler) worker(urlChan chan crawlTask, done <-chan struct{}, wg *sync.
 					continue
 				}
 				
+				if !c.robots.IsAllowed(link) {
+					continue
+				}
+				
 				select {
 				case <-done:
 					pendingWork.Done()
@@ -148,88 +162,4 @@ func (c *Crawler) worker(urlChan chan crawlTask, done <-chan struct{}, wg *sync.
 	}
 }
 
-func (c *Crawler) fetchAndParse(targetURL, baseURL string) ([]string, error) {
-	if c.rateLimit != nil {
-		<-c.rateLimit
-	}
-	
-	resp, err := c.client.Get(targetURL)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status code: %d", resp.StatusCode)
-	}
-	
-	body, err := io.ReadAll(resp.Body)
-	// fmt.Printf("targetURL: %v and baseURL: %v body: %v\n", targetURL, baseURL, string(body))
-	if err != nil {
-		return nil, err
-	}
-	
-	return c.extractLinks(string(body), baseURL), nil
-}
-
-func (c *Crawler) extractLinks(html, baseURL string) []string {
-	var links []string
-	seen := make(map[string]bool)
-	
-	hrefRegex := regexp.MustCompile(`(?i)href\s*=\s*["']([^"']+)["']`)
-	matches := hrefRegex.FindAllStringSubmatch(html, -1)
-	
-	for _, match := range matches {
-		if len(match) < 2 {
-			continue
-		}
-		
-		link := strings.TrimSpace(match[1])
-		if link == "" || link == "#" {
-			continue
-		}
-		
-		absoluteURL, err := c.resolveURL(link, baseURL)
-		// fmt.Printf("absoluteURL: %v for link: %v and baseURL: %v \n", absoluteURL, link, baseURL)
-		if err != nil {
-			continue
-		}
-		
-		if !seen[absoluteURL] {
-			seen[absoluteURL] = true
-			links = append(links, absoluteURL)
-		}
-	}
-	
-	return links
-}
-
-func normalizeURL(u string) string {
-	parsed, err := url.Parse(u)
-	if err != nil {
-		return u
-	}
-	parsed.Fragment = ""
-	parsed.RawQuery = ""
-	if parsed.Path == "" {
-		parsed.Path = "/"
-	}
-	// fmt.Printf("normalizedURL: %v for u: %v \n", parsed, u)
-	return parsed.String()
-}
-
-func (c *Crawler) resolveURL(link, baseURL string) (string, error) {
-	parsedLink, err := url.Parse(link)
-	if err != nil {
-		return "", err
-	}
-	
-	parsedBase, err := url.Parse(baseURL)
-	if err != nil {
-		return "", err
-	}
-	
-	absoluteURL := parsedBase.ResolveReference(parsedLink)
-	return absoluteURL.String(), nil
-}
 

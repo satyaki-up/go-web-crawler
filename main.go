@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	startURL := "https://crawlme.monzo.com/"
+	startURL := "https://monzo.com/"
 	maxWorkers := flag.Int("workers", 5, "Number of concurrent workers")
 	maxDepth := flag.Int("depth", 2, "Maximum crawl depth")
 	timeout := flag.Duration("timeout", 10*time.Second, "Request timeout")
