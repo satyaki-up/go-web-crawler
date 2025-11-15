@@ -1,2 +1,1 @@
-# go-web-crawler
-Web crawler in Golang
+go run main.go  -workers 5 -depth 5000 -rate 1
