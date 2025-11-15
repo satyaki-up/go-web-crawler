@@ -49,6 +49,7 @@ func (c *Crawler) Crawl(startURL string) map[string]bool {
 	}
 	baseURL := parsedURL.Scheme + "://" + parsedURL.Host
 	allowedHost := parsedURL.Host
+	fmt.Printf("allowedHost: %v\n", allowedHost)
 	
 	urlChan := make(chan crawlTask, 100)
 	done := make(chan struct{})
@@ -163,6 +164,7 @@ func (c *Crawler) fetchAndParse(targetURL, baseURL string) ([]string, error) {
 	}
 	
 	body, err := io.ReadAll(resp.Body)
+	// fmt.Printf("targetURL: %v and baseURL: %v body: %v\n", targetURL, baseURL, string(body))
 	if err != nil {
 		return nil, err
 	}
@@ -188,11 +190,8 @@ func (c *Crawler) extractLinks(html, baseURL string) []string {
 		}
 		
 		absoluteURL, err := c.resolveURL(link, baseURL)
+		// fmt.Printf("absoluteURL: %v for link: %v and baseURL: %v \n", absoluteURL, link, baseURL)
 		if err != nil {
-			continue
-		}
-		
-		if !strings.HasPrefix(absoluteURL, "http://") && !strings.HasPrefix(absoluteURL, "https://") {
 			continue
 		}
 		
@@ -215,6 +214,7 @@ func normalizeURL(u string) string {
 	if parsed.Path == "" {
 		parsed.Path = "/"
 	}
+	// fmt.Printf("normalizedURL: %v for u: %v \n", parsed, u)
 	return parsed.String()
 }
 
