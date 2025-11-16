@@ -7,14 +7,15 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 )
 
-func (c *Crawler) fetchAndParse(targetURL, baseURL string) ([]string, error) {
-	if c.rateLimit != nil {
-		<-c.rateLimit
+func fetchAndParse(client *http.Client, rateLimit <-chan time.Time, targetURL, baseURL string) ([]string, error) {
+	if rateLimit != nil {
+		<-rateLimit
 	}
 	
-	resp, err := c.client.Get(targetURL)
+	resp, err := client.Get(targetURL)
 	if err != nil {
 		return nil, err
 	}
@@ -29,10 +30,10 @@ func (c *Crawler) fetchAndParse(targetURL, baseURL string) ([]string, error) {
 		return nil, err
 	}
 	
-	return c.extractLinks(string(body), baseURL), nil
+	return extractLinks(string(body), baseURL), nil
 }
 
-func (c *Crawler) extractLinks(html, baseURL string) []string {
+func extractLinks(html, baseURL string) []string {
 	var links []string
 	seen := make(map[string]bool)
 	
@@ -49,7 +50,7 @@ func (c *Crawler) extractLinks(html, baseURL string) []string {
 			continue
 		}
 		
-		absoluteURL, err := c.resolveURL(link, baseURL)
+		absoluteURL, err := resolveURL(link, baseURL)
 		if err != nil {
 			continue
 		}
@@ -76,7 +77,7 @@ func normalizeURL(u string) string {
 	return parsed.String()
 }
 
-func (c *Crawler) resolveURL(link, baseURL string) (string, error) {
+func resolveURL(link, baseURL string) (string, error) {
 	parsedLink, err := url.Parse(link)
 	if err != nil {
 		return "", err
