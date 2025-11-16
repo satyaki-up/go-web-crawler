@@ -19,7 +19,7 @@ func NewRobots(baseURL string, client *http.Client) (*Robots, error) {
 	}
 
 	robotsURL := fmt.Sprintf("%s://%s/robots.txt", parsedURL.Scheme, parsedURL.Host)
-	
+
 	resp, err := client.Get(robotsURL)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch robots.txt: %w", err)
@@ -62,4 +62,3 @@ func (r *Robots) IsAllowed(targetURL string) bool {
 	// }
 	return r.group.Test(path)
 }
-

@@ -17,16 +17,15 @@ func main() {
 	flag.Parse()
 
 	crawlerWorkerPool := crawler.NewCrawlerWorkerPool(*maxWorkers, *maxDepth, *timeout, *rateLimit)
-	
+
 	fmt.Printf("Starting crawl of %s with %d workers (max depth: %d)\n", startURL, *maxWorkers, *maxDepth)
-	
+
 	results := crawlerWorkerPool.Crawl(startURL)
-	
+
 	fmt.Printf("\n=== Crawl Results ===\n")
 	fmt.Printf("Total URLs visited: %d\n", len(results))
-	
+
 	for url := range results {
 		fmt.Println(url)
 	}
 }
-
